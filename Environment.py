@@ -56,6 +56,9 @@ class Environment(object):
         E = self.param.gamma * f**3 * self.param.d_t + P * self.param.d_t
         #pdb.set_trace()
         self.update(d, E)
+        # print(f"d: {d}")
+        # print(f"self.d_r: {self.d_r}")
+        # print(f"E: {E}")
 
         return np.transpose(np.vstack((self.d_r, self.a, self.q, self.h))), E
 

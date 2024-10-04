@@ -64,11 +64,14 @@ class Parameter(object):
         self.sigma2 = 1e-11
 
         # channel model
-        self.length = 100
+        # self.length = 100
+        self.length = 50
         self.epsilon = 3.8
         self.BS_loc = (self.length/2, self.length/2)
+        # self.BS_loc_list = [(random.randint(0, self.length), random.randint(0, self.length)) for _ in range(4)]
         self.WD_loc_list = [(random.randint(0,self.length), random.randint(0,self.length)) for _ in range(self.N)]
         self.distance = [math.sqrt((self.BS_loc[0]-WD_loc[0])**2 + (self.BS_loc[1]-WD_loc[1])**2) for WD_loc in self.WD_loc_list]
+        # self.distance = [[math.sqrt((bs[0] - wd[0]) ** 2 + (bs[1] - wd[1]) ** 2) for bs in self.BS_loc_list] for wd in self.WD_loc_list]
         print(self.distance)
         self.distance = np.array(self.distance)
 
