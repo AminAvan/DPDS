@@ -18,6 +18,9 @@ import time
 import pickle
 import pdb
 
+import psutil
+start_time = time.time()
+
 # +
 #################### params ###########################
 parser = argparse.ArgumentParser(description='Hyper_params')
@@ -374,6 +377,16 @@ def train(T):
     stat_W = []
     timer = 1
 
+    threshold = 1e-3  # "close enough" margin
+    stable_steps_needed = 100
+    stable_count = 0
+    prev_aoi = None
+    ## memory calculator
+    process = psutil.Process(os.getpid())
+    prev_time = time.time()
+    prev_mem = process.memory_info().rss  # in bytes
+    total_mem_time = 0.0
+
     acc_interaction_time = 0
     acc_inference_time = 0
     acc_training_time = 0
@@ -420,7 +433,6 @@ def train(T):
             with fw.as_default():
                 tf.summary.scalar('value_loss', value_loss, step=timer)
                 tf.summary.scalar('actor_loss', actor_loss, step=timer)
-                print(f"actor_loss:{actor_loss}")
                 tf.summary.scalar('cost1', tf.math.reduce_mean(c), step=timer)
                 tf.summary.scalar('value', tf.math.reduce_mean(v), step=timer)
 
@@ -444,6 +456,37 @@ def train(T):
         with fw.as_default():
             tf.summary.scalar('cost', cost, step=timer)
             tf.summary.scalar('aoi', np.sum(state[:, 1]) / args.N, step=timer)
+
+            ## checking convergence
+            if timer % 1000 == 0:
+                # print(f"aoi:{np.sum(state[:, 1]) / args.N}")
+                print(f"diff-aoi:{abs((np.sum(state[:, 1]) / args.N) - prev_aoi)}")
+                process = psutil.Process(os.getpid())
+                mem_mb = process.memory_info().rss / 1024 / 1024
+                print(f"Memory usage (MB): {mem_mb:.2f}")
+
+
+            # if prev_aoi is not None:
+            #     print(f"aoi:{(np.sum(state[:, 1]) / args.N)}")
+            #     print(f"prev_aoi:{prev_aoi}")
+            #     print(f"diff: {abs((np.sum(state[:, 1]) / args.N) - prev_aoi)}")
+            #     print(f"threshold:{threshold}")
+
+            if prev_aoi is not None and abs((np.sum(state[:, 1]) / args.N) - prev_aoi) < threshold:
+                stable_count += 1
+            else:
+                stable_count = 0
+
+            # if prev_aoi is not None:
+            #     print(f"stable_count:{stable_count}")
+            #     print(f"stable_steps_needed:{stable_steps_needed}")
+
+            if stable_count >= stable_steps_needed:
+                print(f"Convergence achieved at iteration (aoi={(np.sum(state[:, 1]) / args.N):.5f}).")
+                break
+            prev_aoi = (np.sum(state[:, 1]) / args.N)
+            # print()
+
             tf.summary.scalar('average aoi', np.sum(acc_A) / timer / args.N, step=timer)
             tf.summary.scalar('energy', np.sum(E) / args.N, step=timer)
             tf.summary.scalar('v', agent.v, step=timer)
@@ -465,6 +508,8 @@ def train(T):
 
 if __name__ == "__main__":
     train(args.T)
-
+    end_time = time.time()
+    duration = end_time - start_time
+    print(f"Total runtime: {duration:.2f} seconds")
 print(tf.__version__)
 
