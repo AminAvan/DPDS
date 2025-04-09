@@ -1,4 +1,8 @@
 # +
+import os
+# Point XLA to the libdevice folder
+os.environ["XLA_FLAGS"] = '--xla_gpu_cuda_data_dir="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.7"'
+os.environ["TF_XLA_FLAGS"] = "--tf_xla_auto_jit=0"
 from Environment import Environment
 from Parameter import Parameter
 from scipy.io import savemat
@@ -6,7 +10,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 import random
-import os
+
 import time
 import argparse
 import sys
@@ -43,11 +47,13 @@ args = parser.parse_args()
 # -
 
 #################### seed ###########################
+
 os.environ['TF_DETERMINISTIC_OPS'] = '1'
 os.environ["CUDA_VISIBLE_DEVICES"] = args.Gpu_Id
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
+
 print(tf.config.list_physical_devices())
 tf.random.set_seed(args.Seed)
 np.random.seed(args.Seed)
@@ -414,6 +420,7 @@ def train(T):
             with fw.as_default():
                 tf.summary.scalar('value_loss', value_loss, step=timer)
                 tf.summary.scalar('actor_loss', actor_loss, step=timer)
+                print(f"actor_loss:{actor_loss}")
                 tf.summary.scalar('cost1', tf.math.reduce_mean(c), step=timer)
                 tf.summary.scalar('value', tf.math.reduce_mean(v), step=timer)
 
