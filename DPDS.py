@@ -18,6 +18,8 @@ import time
 import pickle
 import pdb
 
+import GPUtil
+import subprocess
 import psutil
 start_time = time.time()
 
@@ -383,9 +385,9 @@ def train(T):
     prev_aoi = None
     ## memory calculator
     process = psutil.Process(os.getpid())
-    prev_time = time.time()
-    prev_mem = process.memory_info().rss  # in bytes
-    total_mem_time = 0.0
+    accum_mem = 0.0  # will hold byte-seconds
+    ## power usage
+    total_power_usage = 0.0
 
     acc_interaction_time = 0
     acc_inference_time = 0
@@ -458,13 +460,41 @@ def train(T):
             tf.summary.scalar('aoi', np.sum(state[:, 1]) / args.N, step=timer)
 
             ## checking convergence
-            if timer % 1000 == 0:
+            if timer % 262 == 0: ## as in our EDGESIMPY after taking 262 steps which is equal to number of services, we take the memory usage
                 # print(f"aoi:{np.sum(state[:, 1]) / args.N}")
                 print(f"diff-aoi:{abs((np.sum(state[:, 1]) / args.N) - prev_aoi)}")
-                process = psutil.Process(os.getpid())
-                mem_mb = process.memory_info().rss / 1024 / 1024
-                print(f"Memory usage (MB): {mem_mb:.2f}")
 
+                current_mem = process.memory_info().rss  # bytes
+                accum_mem += (current_mem / (1024.0 ** 2))
+                print(f"Approx cumulative memory usage: {accum_mem:.2f} MB-seconds.")
+
+                try:
+                    gpus = GPUtil.getGPUs()
+                    if gpus:
+                        ### Values for NVIDIA GeForce GTX 1070
+                        P_idle = 10  # Idle power for GTX 1070 (in watts)
+                        P_max = 150  # Maximum power for GTX 1070 (in watts)
+
+                        info_gpu = subprocess.run(
+                            ['nvidia-smi', '--query-gpu=utilization.gpu', '--format=csv,noheader,nounits'],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True
+                        )
+                        gpu_utilization_percentage = float(info_gpu.stdout.strip())
+                        # Apply the GPU power consumption formula (similar to CPU)
+                        power_estimate = P_idle + (P_max - P_idle) * (gpu_utilization_percentage / 100)
+                        total_power_usage += power_estimate
+                    else:
+                        raise ValueError("No GPU found.")
+                except (ImportError, ValueError):
+                    # Fallback to CPU utilization if GPU is not available
+                    cpu_percent = psutil.cpu_percent(interval=0.1)
+                    # Apply the CPU power consumption formula
+                    power_estimate = P_idle + (P_max - P_idle) * (cpu_percent / 100)
+                    total_power_usage += power_estimate
+
+                print(f"total power usage: {total_power_usage:.2f} W")
 
             # if prev_aoi is not None:
             #     print(f"aoi:{(np.sum(state[:, 1]) / args.N)}")
